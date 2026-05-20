@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pastel Class Scheduler (Balanced UI)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
+    <style>
+        :root {
+            --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0;
+            --slate-400: #94a3b8; --slate-500: #64748b; --slate-600: #475569;
+            --slate-700: #334155; --slate-800: #1e293b; --slate-900: #0f172a;
+            /* Pastel Palette */
+            --p-blue: #BAE1FF; --p-blue-dark: #2D5A8E;
+            --p-green: #BAFFC9; --p-green-dark: #2E7D32;
+            --p-purple: #E0BBE4; --p-purple-dark: #6A1B9A;
+            --p-gray: #f4f4f5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Prompt', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #fafafa; color: var(--slate-800); padding: 15px; line-height: 1.4; }
+        button { appearance: none; -webkit-appearance: none; outline: none; border: none; background: none; font-family: 'Prompt', sans-serif; cursor: pointer; transition: 0.2s; }
+        
+        .container { max-width: 1200px; margin: 0 auto; width: 100%; }
+        header { margin-bottom: 20px; border-bottom: 1px solid var(--slate-200); padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        h1 { font-size: 24px; font-weight: 600; color: var(--slate-900); }
+        .btn-share { background: #fff; border: 2px solid var(--slate-900); padding: 8px 16px; border-radius: 12px; font-weight: 600; font-size: 13px; }
+
+        .layout { display: flex; gap: 20px; flex-direction: column; }
+        @media (min-width: 1024px) { .layout { flex-direction: row; align-items: flex-start; } }
+
+        .panel { background: #fff; padding: 20px; border-radius: 20px; border: 1px solid var(--slate-100); box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        
+        /* แก้ไขสัดส่วนให้สมดุลและไม่โดนบีบ */
+        .panel-left { flex: 1; min-width: 320px; }
+        .panel-right { flex: 1.8; display: flex; flex-direction: column; gap: 15px; min-width: 0; }
+
+        label { display: block; font-size: 13px; color: var(--slate-500); margin-bottom: 8px; font-weight: 500; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--slate-200); border-radius: 12px; font-size: 15px; outline: none; background: var(--slate-50); margin-bottom: 15px; }
+        
+        select.form-select {
+            width: 100%; padding: 12px; border: 1px solid var(--slate-200); border-radius: 12px; font-size: 14px;
+            outline: none; background: var(--slate-50); color: var(--slate-700); font-family: 'Prompt';
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;
+        }
+        select.form-select:focus { background: #fff; border-color: var(--slate-900); }
+
+        .choice-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        /* ปรับขนาดปุ่มให้พอดีแถวเดียวเสมอ */
+        .btn-choice { flex: 1; min-width: 35px; padding: 10px 5px; border-radius: 12px; border: 2px solid transparent; font-size: 13px; font-weight: 500; background: var(--slate-50); color: var(--slate-600); text-align: center; }
+        
+        .btn-choice.cat-blue { background: var(--p-blue); color: var(--p-blue-dark); }
+        .btn-choice.cat-green { background: var(--p-green); color: var(--p-green-dark); }
+        .btn-choice.cat-purple { background: var(--p-purple); color: var(--p-purple-dark); }
+        .btn-choice.active { border-color: var(--slate-900); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+
+        .tab-container { display: flex; gap: 10px; margin-bottom: 5px; background: var(--slate-50); padding: 5px; border-radius: 14px; }
+        .tab-btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--slate-500); }
+        .tab-btn.active { background: #fff; color: var(--slate-900); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        .table-wrapper { overflow-x: auto; border-radius: 16px; border: 1px solid var(--slate-100); background: #fff; }
+        .timetable { min-width: 950px; position: relative; }
+        .time-header { display: flex; background: var(--slate-50); border-bottom: 1px solid var(--slate-100); font-size: 11px; color: var(--slate-400); }
+        .time-col { flex: 1; text-align: center; padding: 12px 0; border-right: 1px solid var(--slate-100); }
+        .day-label-fixed { width: 60px; flex-shrink: 0; background: var(--slate-100); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; position: sticky; left: 0; z-index: 10; border-right: 2px solid var(--slate-200); }
+        
+        .day-row { display: flex; border-bottom: 1px solid var(--slate-50); min-height: 75px; position: relative; }
+        .course-block { position: absolute; top: 6px; bottom: 6px; border-radius: 10px; padding: 8px; font-size: 11px; z-index: 5; display: flex; flex-direction: column; justify-content: center; overflow: hidden; border: 1px solid rgba(0,0,0,0.05); }
+        .course-code-text { font-weight: 700; font-size: 12px; }
+        .course-name-text { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
+        
+        .bg-วิชาคณะ { background: var(--p-blue); color: var(--p-blue-dark); }
+        .bg-วิชาเลือก { background: var(--p-green); color: var(--p-green-dark); }
+        .bg-วิชาเลือกเสรี { background: var(--p-purple); color: var(--p-purple-dark); }
+        
+        .is-backup { border: 2px dashed rgba(0,0,0,0.3) !important; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.4) 10px, rgba(255,255,255,0.4) 20px); opacity: 0.95; }
+
+        .course-item { display: flex; justify-content: space-between; align-items: center; background: var(--slate-50); padding: 15px; border-radius: 14px; margin-bottom: 10px; border: 1px solid var(--slate-100); }
+        .action-btns { display: flex; gap: 8px; }
+        .btn-action { padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #fff; }
+        .btn-edit-item { background: #90caf9; color: #0d47a1; }
+        .btn-del-item { background: #ef9a9a; color: #b71c1c; }
+
+        .btn-submit { width: 100%; background: var(--slate-900); color: #fff; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: 600; margin-top: 10px; }
+        .btn-submit.btn-edit { background: var(--p-blue-dark); }
+
+        .hidden { display: none !important; }
+        #view-mode-msg { background: var(--p-blue); color: var(--p-blue-dark); padding: 12px; border-radius: 12px; text-align: center; font-size: 14px; font-weight: 600; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>My Schedule 🎨</h1>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span id="db-status" style="font-size: 11px; color: var(--slate-400);">กำลังโหลด...</span>
+                <button class="btn-share" id="share-link-btn" onclick="copyShareLink()">🔗 คัดลอกลิงก์แชร์</button>
+            </div>
+        </header>
+
+        <div id="view-mode-msg">✨ โหมดตารางเพื่อน (ดูได้อย่างเดียว)</div>
+
+        <div class="layout">
+            <div class="panel panel-left" id="input-panel">
+                <h2 style="font-size: 18px; margin-bottom: 15px;" id="form-title">เพิ่มวิชาใหม่</h2>
+                
+                <label>รหัส & ชื่อวิชา</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="code" placeholder="รหัส" style="flex: 1;">
+                    <input type="text" id="name" placeholder="ชื่อวิชา" style="flex: 2;">
+                </div>
+
+                <label>หมวดวิชา</label>
+                <div class="choice-group">
+                    <button class="btn-choice cat-blue active" id="c1" onclick="setCat('วิชาคณะ', 'c1')">วิชาคณะ</button>
+                    <button class="btn-choice cat-green" id="c2" onclick="setCat('วิชาเลือก', 'c2')">วิชาเลือก</button>
+                    <button class="btn-choice cat-purple" id="c3" onclick="setCat('วิชาเลือกเสรี', 'c3')">วิชาเลือกเสรี</button>
+                </div>
+
+                <label>วันเรียน</label>
+                <div class="choice-group">
+                    <button class="btn-choice active" id="d1" onclick="setDay('จันทร์', 'd1')">จ.</button>
+                    <button class="btn-choice" id="d2" onclick="setDay('อังคาร', 'd2')">อ.</button>
+                    <button class="btn-choice" id="d3" onclick="setDay('พุธ', 'd3')">พ.</button>
+                    <button class="btn-choice" id="d4" onclick="setDay('พฤหัสบดี', 'd4')">พฤ.</button>
+                    <button class="btn-choice" id="d5" onclick="setDay('ศุกร์', 'd5')">ศ.</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>เวลาเริ่ม</label>
+                        <select id="timeStart" class="form-select"></select>
+                    </div>
+                    <div>
+                        <label>เวลาถึง (จบคาบ)</label>
+                        <select id="timeEnd" class="form-select"></select>
+                    </div>
+                </div>
+
+                <label style="display: flex; align-items: center; cursor: pointer; background: var(--p-gray); padding: 12px; border-radius: 12px;">
+                    <input type="checkbox" id="isBackup" style="margin-right: 10px; width: 18px; height: 18px;">
+                    ตั้งเป็นวิชาสำรอง (จัดไว้ตารางที่ 2)
+                </label>
+
+                <button class="btn-submit" id="main-submit-btn" onclick="handleSubmit()">บันทึกวิชาเรียน</button>
+                <button class="btn-submit hidden" id="cancel-edit-btn" onclick="resetForm()" style="background: var(--slate-200); color: var(--slate-600); margin-top: 5px;">ยกเลิกแก้ไข</button>
+            </div>
+
+            <div class="panel-right">
+                <div class="tab-container">
+                    <button id="tab-main" class="tab-btn active" onclick="switchTab('main')">👁️ ตารางหลัก</button>
+                    <button id="tab-backup" class="tab-btn" onclick="switchTab('backup')">ตารางสำรอง (กันชน)</button>
+                </div>
+
+                <div class="panel" style="padding: 0; overflow: hidden;">
+                    <div class="table-wrapper">
+                        <div class="timetable">
+                            <div class="time-header">
+                                <div class="day-label-fixed" style="background: var(--slate-50);">วัน</div>
+                                <div class="time-col">8:00</div>
+                                <div class="time-col">9:00</div>
+                                <div class="time-col">10:00</div>
+                                <div class="time-col">11:00</div>
+                                <div class="time-col">12:00</div>
+                                <div class="time-col">13:00</div>
+                                <div class="time-col">14:00</div>
+                                <div class="time-col">15:00</div>
+                                <div class="time-col">16:00</div>
+                                <div class="time-col">17:00</div>
+                                <div class="time-col">18:00</div>
+                                <div class="time-col">19:00</div>
+                                <div class="time-col">20:00</div>
+                            </div>
+                            <div id="timetableBody"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="summary-header">
+                        <h2 style="font-size: 16px; margin: 0;">รายการวิชา (ตามตารางที่ดู)</h2>
+                        <button class="btn-copy" onclick="copyCodes()">📋 คัดลอกรหัสวิชานี้</button>
+                    </div>
+                    <div id="courseListSummary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // -------------------------------------------------------------
+        // 1. สร้าง UI พื้นฐานก่อนเสมอ
+        // -------------------------------------------------------------
+        let courses = [];
+        let selectedCat = 'วิชาคณะ';
+        let selectedDay = 'จันทร์';
+        let editId = null;
+        let currentTab = 'main';
+        let dbCol = null;
+        
+        const startTimesArray = ['8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+        const endTimesArray = ['8:50', '9:50', '10:50', '11:50', '12:50', '13:50', '14:50', '15:50', '16:50', '17:50', '18:50', '19:50', '20:50'];
+        const daysText = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const isViewMode = urlParams.has('mode') && urlParams.get('mode') === 'view';
+
+        function initUI() {
+            const ts = document.getElementById('timeStart');
+            const te = document.getElementById('timeEnd');
+            
+            ts.innerHTML = '';
+            te.innerHTML = '';
+
+            startTimesArray.forEach((time, i) => ts.innerHTML += `<option value="${i}">${time}</option>`);
+            endTimesArray.forEach((time, i) => te.innerHTML += `<option value="${i}">${time}</option>`);
+
+            if (isViewMode) {
+                document.getElementById('input-panel').classList.add('hidden');
+                document.getElementById('view-mode-msg').style.display = 'block';
+                document.getElementById('share-link-btn').classList.add('hidden');
+            }
+            
+            renderAll();
+        }
+
+        initUI();
+
+        // -------------------------------------------------------------
+        // 2. เชื่อมต่อ Firebase อย่างปลอดภัย
+        // -------------------------------------------------------------
+        try {
+            const firebaseConfig = {
+                apiKey: "AIzaSyA4227VH3f9K88rC1ZI9wKez2zpqFUwTZ0",
+                authDomain: "study-table-v01.firebaseapp.com",
+                projectId: "study-table-v01",
+                storageBucket: "study-table-v01.firebasestorage.app",
+                messagingSenderId: "295374381789",
+                appId: "1:295374381789:web:d5600f8529d805fa8cf134"
+            };
+
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            const db = firebase.firestore();
+            dbCol = db.collection("schedule_courses");
+
+            dbCol.onSnapshot(snap => {
+                courses = [];
+                snap.forEach(doc => courses.push({ id: doc.id, ...doc.data() }));
+                
+                courses.sort((a, b) => {
+                    if(a.day !== b.day) return daysText.indexOf(a.day) - daysText.indexOf(b.day);
+                    return a.startIdx - b.startIdx;
+                });
+                
+                document.getElementById('db-status').innerText = "เชื่อมต่อฐานข้อมูลแล้ว ✅";
+                renderAll();
+            }, err => {
+                console.error("Firestore read error:", err);
+                document.getElementById('db-status').innerText = "ไม่มีสิทธิ์อ่านข้อมูล ❌";
+            });
+        } catch(error) {
+            console.error("Firebase init failed:", error);
+            document.getElementById('db-status').innerText = "เชื่อมต่อระบบล้มเหลว ❌";
+        }
+
+        // -------------------------------------------------------------
+        // 3. ฟังก์ชันการทำงานต่างๆ
+        // -------------------------------------------------------------
+        function setCat(v, id) {
+            document.querySelectorAll('.cat-blue, .cat-green, .cat-purple').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            selectedCat = v;
+        }
+
+        function setDay(v, id) {
+            document.querySelectorAll('#d1, #d2, #d3, #d4, #d5').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            selectedDay = v;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-main').classList.toggle('active', tab === 'main');
+            document.getElementById('tab-backup').classList.toggle('active', tab === 'backup');
+            renderAll();
+        }
+
+        async function handleSubmit() {
+            const code = document.getElementById('code').value.trim().toUpperCase();
+            const name = document.getElementById('name').value.trim();
+            let isBackup = document.getElementById('isBackup').checked;
+            
+            const startIdx = parseInt(document.getElementById('timeStart').value);
+            const endIdx = parseInt(document.getElementById('timeEnd').value);
+
+            if(!code) { alert('กรุณากรอกรหัสวิชาให้ครบถ้วนครับ'); return; }
+            if(endIdx < startIdx) { alert('⚠️ เวลาสิ้นสุดต้องไม่น้อยกว่าเวลาเริ่มครับ'); return; }
+
+            if (selectedCat === 'วิชาคณะ') {
+                isBackup = false;
+            }
+
+            if(!isBackup) {
+                const clash = courses.some(c => c.id !== editId && !c.isBackup && c.day === selectedDay && (startIdx <= c.endIdx && endIdx >= c.startIdx));
+                if(clash) { 
+                    if (selectedCat === 'วิชาคณะ') {
+                        alert('🚨 ไม่สามารถลงวิชาคณะนี้ได้ เนื่องจากช่วงเวลานี้ชนกับวิชาหลักอื่นในตารางครับ!');
+                        return;
+                    }
+                    const wantBackup = confirm('🚨 เวลาเรียนนี้ชนกับวิชาหลักในตาราง!\nคุณต้องการจัดวิชานี้เป็น "วิชาสำรอง" แล้วนำไปไว้ในตารางที่ 2 แทนหรือไม่?');
+                    if (wantBackup) { isBackup = true; } else { return; }
+                }
+            }
+
+            const data = {
+                code, name, category: selectedCat, day: selectedDay,
+                startIdx: startIdx, endIdx: endIdx, isBackup: isBackup,
+                createdAt: new Date().toISOString()
+            };
+
+            if(!dbCol) {
+                alert("ระบบฐานข้อมูลยังไม่พร้อมทำงานครับ");
+                return;
+            }
+
+            try {
+                if(editId) {
+                    await dbCol.doc(editId).update(data);
+                } else {
+                    await dbCol.add(data);
+                }
+                resetForm();
+                switchTab(isBackup ? 'backup' : 'main');
+            } catch(e) { alert('Firebase Save Error: ' + e.message); }
+        }
+
+        function editCourse(id) {
+            const c = courses.find(item => item.id === id);
+            if(!c) return;
+            
+            editId = id;
+            document.getElementById('code').value = c.code;
+            document.getElementById('name').value = c.name;
+            document.getElementById('isBackup').checked = c.isBackup;
+            document.getElementById('timeStart').value = c.startIdx;
+            document.getElementById('timeEnd').value = c.endIdx;
+            
+            setDay(c.day, 'd' + (daysText.indexOf(c.day) + 1));
+            const catMap = {'วิชาคณะ': 'c1', 'วิชาเลือก': 'c2', 'วิชาเลือกเสรี': 'c3'};
+            setCat(c.category, catMap[c.category]);
+
+            document.getElementById('form-title').innerText = "กำลังแก้ไขวิชา " + c.code;
+            document.getElementById('main-submit-btn').innerText = "อัปเดตวิชาเรียน";
+            document.getElementById('main-submit-btn').classList.add('btn-edit');
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function deleteCourse(id) {
+            if(confirm('ยืนยันการลบวิชานี้?')) {
+                try {
+                    if(dbCol) await dbCol.doc(id).delete();
+                } catch(e) { alert("ลบไม่สำเร็จ: " + e.message); }
+            }
+        }
+
+        function resetForm() {
+            editId = null;
+            document.getElementById('code').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('isBackup').checked = false;
+            document.getElementById('timeStart').value = "0";
+            document.getElementById('timeEnd').value = "0";
+            
+            document.getElementById('form-title').innerText = "เพิ่มวิชาใหม่";
+            document.getElementById('main-submit-btn').innerText = "บันทึกวิชาเรียน";
+            document.getElementById('main-submit-btn').classList.remove('btn-edit');
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+        function renderAll() {
+            const tbody = document.getElementById('timetableBody');
+            const slist = document.getElementById('courseListSummary');
+            tbody.innerHTML = ''; slist.innerHTML = '';
+
+            const displayCourses = currentTab === 'main' 
+                ? courses.filter(c => !c.isBackup) 
+                : courses.filter(c => c.isBackup || c.category === 'วิชาคณะ');
+
+            if (displayCourses.length === 0) {
+                tbody.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--slate-400); font-size: 13px; width: 100%;">ตาราง${currentTab === 'main' ? 'หลัก' : 'สำรอง'}ยังว่างอยู่ครับ</div>`;
+                slist.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 20px; font-size: 14px;">ยังไม่มีข้อมูลวิชาในตาราง${currentTab === 'main' ? 'หลัก' : 'สำรอง'}</div>`;
+                return;
+            }
+
+            const daysArr = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
+
+            daysArr.forEach(day => {
+                const dayCourses = displayCourses.filter(c => c.day === day);
+                if(dayCourses.length === 0) return;
+
+                const row = document.createElement('div');
+                row.className = 'day-row';
+                row.innerHTML = `<div class="day-label-fixed">${day[0]}</div>`;
+                
+                dayCourses.forEach(c => {
+                    const block = document.createElement('div');
+                    const span = c.endIdx - c.startIdx + 1;
+                    
+                    const actualBackupStyle = (c.isBackup && currentTab === 'backup') ? 'is-backup' : '';
+                    
+                    block.className = `course-block bg-${c.category} ${actualBackupStyle}`;
+                    block.style.left = `calc(60px + ${(c.startIdx / 13) * 100}%)`;
+                    block.style.width = `calc(${(span / 13) * 100}% - 6px)`;
+                    block.innerHTML = `<div class="course-code-text">${c.code}</div><div class="course-name-text">${c.name}</div>`;
+                    
+                    if(!isViewMode) block.onclick = () => editCourse(c.id);
+                    row.appendChild(block);
+                });
+                tbody.appendChild(row);
+            });
+
+            displayCourses.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'course-item';
+                
+                const labelTag = (c.category === 'วิชาคณะ' && currentTab === 'backup') ? ' <span style="font-size:10px; background:var(--p-blue-dark); color:#fff; padding:2px 4px; border-radius:4px;">วิชาบังคับ</span>' : (c.isBackup ? ' [สำรอง]' : '');
+
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight:600; font-size:14px;">${c.code} <span style="font-weight:400; font-size:12px; color:#64748b;">${c.name}</span></div>
+                        <div style="font-size:11px; color:#94a3b8;">${c.day} | ${startTimesArray[c.startIdx]} - ${endTimesArray[c.endIdx]} (${c.category})${labelTag}</div>
+                    </div>
+                    <div class="action-btns ${isViewMode ? 'hidden' : ''}">
+                        <button class="btn-action btn-edit-item" onclick="editCourse('${c.id}')">แก้ไข</button>
+                        <button class="btn-action btn-del-item" onclick="deleteCourse('${c.id}')">ลบ</button>
+                    </div>
+                `;
+                slist.appendChild(item);
+            });
+        }
+
+        function copyCodes() {
+            const targetCourses = currentTab === 'main' 
+                ? courses.filter(c => !c.isBackup) 
+                : courses.filter(c => c.isBackup || c.category === 'วิชาคณะ');
+            
+            const codes = targetCourses.map(c => c.code).join(', ');
+            if(!codes) { alert('ไม่มีรหัสวิชาในตารางนี้'); return; }
+            
+            const el = document.createElement('textarea');
+            el.value = codes; document.body.appendChild(el);
+            el.select(); document.execCommand('copy');
+            document.body.removeChild(el);
+            alert(`คัดลอกรหัสวิชาในหน้าตารางนี้เรียบร้อยแล้ว: ` + codes);
+        }
+
+        function copyShareLink() {
+            const baseUrl = window.location.href.split('?')[0];
+            const shareUrl = baseUrl + "?mode=view";
+            
+            const el = document.createElement('textarea');
+            el.value = shareUrl; document.body.appendChild(el);
+            el.select(); document.execCommand('copy');
+            document.body.removeChild(el);
+            
+            alert('🔗 คัดลอกลิงก์สำเร็จ!\n\nหมายเหตุ: นำโค้ดอัปโหลดขึ้น GitHub เพื่อให้ลิงก์ใช้งานได้จริงนะครับ');
+        }
+    </script>
+</body>
+</html>
